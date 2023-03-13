@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta charset="UTF-8">
+      <title>PulseBrush</title>
+   </head>
+   <body>
+      <div style="display:flex;border:2px solid rgba(0,0,0,.2)">
+         <div style="display:flex;flex-direction:column;padding:2px">
+            <div style="display:flex;flex-wrap:wrap">
+               <canvas id="last" width="768" height="768" style="border:2px solid rgba(0,0,0,.2);margin-right:2px"></canvas>
+               <canvas id="c" width="768" height="768" style="border:2px solid black"></canvas>
+               <canvas id="info" width="360" height="768" style="border:2px solid rgba(0,0,0,.1);margin-left:2px"></canvas>
+            </div>
+            <div id="t" style="display:flex;flex-wrap:wrap;margin-left:2px"></div>
+            <input type="file" id="imageLoader">
+            <div>
+               <input type="checkbox" name="effects-toggle" id="effects-toggle" checked>
+               <label for="effects-toggle">Effects</label>
+            </div>
+         </div>
+      </div>
+      <script>
+         const info = document.getElementById("info"),
+           infoCtx = info.getContext("2d"),
+           img = new Image();
+         img.onload = () => {
+           infoCtx.drawImage(img, 0, 0, 360, 768);
+         };
+         img.src = "v1.gif";
+         info.addEventListener('click', () => {
+           info.style.display = info.style.display === 'none' ? 'block' : 'none';
+         });
+             const c = document.getElementById("c"),
+               last = document.getElementById("last"),
+               ctx = c.getContext("2d"),
+               lastCtx = last.getContext("2d"),
+               u = [],
+               r = [],
+               w = 48,
+               h = 48,
+               m = 10;
+             let i = null,
+               d = !1,
+               highlighted = null,
+               erasing = false,
+               isEraserSmall = false;
+             const restoredImages = new Map();
+             const clearCanvas = () => {
+               ctx.clearRect(0, 0, c.width, c.height);
+               if (i) ctx.drawImage(i, 0, 0, c.width, c.height);
+             };
+         const drawThumbnail = e => {
+           const t = document.createElement("img");
+           t.src = u[e], t.width = w, t.height = h, t.style.margin = "2px", t.style.border = "2px solid rgba(0,0,0,.2)", t.dataset.index = e, t.addEventListener("click", () => {
+             const e = u[t.dataset.index];
+             if (!restoredImages.has(e)) {
+               r.length = 0;
+               const t = new Image;
+               t.onload = () => {
+                 i = t, clearCanvas()
+               }, t.src = e, restoredImages.set(e, t)
+             } else {
+               i = restoredImages.get(e), clearCanvas()
+             }
+             document.querySelectorAll('#t img').forEach(img => img.style.border = '2px solid rgba(0,0,0,.2)');
+             t.style.border = '2px solid black';
+             i = t;
+             highlighted = t;
+             restoreFromThumbnail();
+           });
+           if (highlighted && t.src === highlighted.src) {
+             t.style.border = '2px solid black';
+           }
+           t.addEventListener("contextmenu", (event) => {
+             event.preventDefault();
+             const index = t.dataset.index;
+             const input = document.createElement("input");
+             input.type = "file";
+             input.accept = "image/*";
+             input.addEventListener("change", () => {
+               const reader = new FileReader();
+               reader.onload = function(event) {
+                 const img = new Image();
+                 img.onload = function() {
+                   const thumbnail = document.createElement("img");
+                   thumbnail.src = event.target.result;
+                   thumbnail.width = w;
+                   thumbnail.height = h;
+                   thumbnail.style.margin = "2px";
+                   thumbnail.style.border = "2px solid rgba(0,0,0,.2)";
+                   thumbnail.dataset.index = index;
+                   thumbnail.addEventListener("click", () => {
+                     const e = u[t.dataset.index];
+                     if (!restoredImages.has(e)) {
+                       r.length = 0;
+                       const t = new Image;
+                       t.onload = () => {
+                         i = t, clearCanvas()
+                       }, t.src = e, restoredImages.set(e, t)
+                     } else {
+                       i = restoredImages.get(e), clearCanvas()
+                     }
+                     document.querySelectorAll('#t img').forEach(img => img.style.border = '2px solid rgba(0,0,0,.2)');
+                     thumbnail.style.border = '2px solid black';
+                     i = thumbnail;
+                     highlighted = thumbnail;
+                     restoreFromThumbnail();
+                   });
+                   document.getElementById("t").replaceChild(thumbnail, t);
+                   u[index] = event.target.result;
+                 }
+                 img.src = event.target.result;
+               }
+               reader.readAsDataURL(input.files[0]);
+             });
+             input.click();
+           });
+           document.getElementById("t").insertBefore(t, document.getElementById("t").firstChild);
+         };
+         const drawThumbnails = () => {
+           document.getElementById("t").innerHTML = "";
+           u.slice().reverse().forEach((e, t) => drawThumbnail(t));
+         };
+         const restoreFromThumbnail = () => {
+           if (highlighted) {
+             const e = u[highlighted.dataset.index];
+             if (!restoredImages.has(e)) {
+               r.length = 0;
+               const t = new Image;
+               t.onload = () => {
+                 i = t, clearCanvas()
+               }, t.src = e, restoredImages.set(e, t)
+             } else {
+               i = restoredImages.get(e), clearCanvas()
+             }
+           }
+         };
+         c.addEventListener("mousedown", e => {
+           if (e.button === 0) {
+             d = !0;
+             ctx.beginPath();
+             ctx.moveTo(e.clientX - c.offsetLeft, e.clientY - c.offsetTop);
+           } else if (e.button === 1) {
+             erasing = true;
+             ctx.globalCompositeOperation = 'destination-out';
+             ctx.beginPath();
+             if (isEraserSmall) {
+               ctx.arc(e.clientX - c.offsetLeft, e.clientY - c.offsetTop, 4, 0, Math.PI * 2);
+             } else {
+               ctx.arc(e.clientX - c.offsetLeft, e.clientY - c.offsetTop, 11, 0, Math.PI * 2);
+             }
+             ctx.fill();
+           }
+         });
+         c.addEventListener("mousemove", e => {
+           if (document.getElementById("effects-toggle").checked) {
+             if (d && !erasing) {
+               ctx.lineTo(e.clientX - c.offsetLeft, e.clientY - c.offsetTop);
+               ctx.lineCap = "round";
+               ctx.lineWidth = 1;
+               ctx.globalAlpha = 1;
+               ctx.shadowBlur = .7;
+               ctx.shadowColor = "black";
+               ctx.stroke();
+             } else if (erasing && e.buttons === 4) {
+               ctx.beginPath();
+               if (isEraserSmall) {
+                 ctx.arc(e.clientX - c.offsetLeft, e.clientY - c.offsetTop, 4, 0, Math.PI * 2);
+               } else {
+                 ctx.arc(e.clientX - c.offsetLeft, e.clientY - c.offsetTop, 11, 0, Math.PI * 2);
+               }
+               ctx.globalCompositeOperation = 'destination-out';
+               ctx.fill();
+               ctx.globalCompositeOperation = 'source-over';
+             }
+           } else {
+             if (d && !erasing) {
+               ctx.lineTo(e.clientX - c.offsetLeft, e.clientY - c.offsetTop);
+               ctx.lineCap = "round";
+               ctx.lineWidth = 1;
+               ctx.globalAlpha = 1;
+               ctx.shadowBlur = 0;
+               ctx.shadowColor = "transparent";
+               ctx.stroke();
+             } else if (erasing && e.buttons === 4) {
+               ctx.beginPath();
+               if (isEraserSmall) {
+                 ctx.arc(e.clientX - c.offsetLeft, e.clientY - c.offsetTop, 4, 0, Math.PI * 2);
+               } else {
+                 ctx.arc(e.clientX - c.offsetLeft, e.clientY - c.offsetTop, 11, 0, Math.PI * 2);
+               }
+               ctx.globalCompositeOperation = 'destination-out';
+               ctx.fill();
+               ctx.globalCompositeOperation = 'source-over';
+             }
+           }
+         });
+         c.addEventListener("mouseup", (e) => {
+           d = !1;
+           if (erasing) {
+             ctx.globalCompositeOperation = "source-over";
+         erasing = false;
+         const e = document.createElement("canvas");
+         e.width = 768;
+         e.height = 768;
+         e.getContext("2d").drawImage(c, 0, 0, e.width, e.height);
+         u.push(c.toDataURL());
+         clearCanvas();
+         drawThumbnails();
+         lastCtx.clearRect(0, 0, last.width, last.height);
+         lastCtx.drawImage(e, 0, 0, last.width, last.height);
+         } else {
+         const e = document.createElement("canvas");
+         e.width = 768;
+         e.height = 768;
+         e.getContext("2d").drawImage(c, 0, 0, e.width, e.height);
+         u.push(c.toDataURL());
+         clearCanvas();
+         drawThumbnails();
+         lastCtx.clearRect(0, 0, last.width, last.height);
+         lastCtx.drawImage(e, 0, 0, last.width, last.height);
+         }
+         });
+         document.addEventListener("keydown", e => {
+         if (e.ctrlKey && "z" === e.key) {
+         if (u.length > 0) {
+         r.push(c.toDataURL());
+         const e = u.pop();
+         const t = new Image;
+         t.onload = () => {
+         i = t, clearCanvas()
+         };
+         t.src = e;
+         drawThumbnails();
+         }
+         } else if (e.ctrlKey && "y" === e.key) {
+         if (r.length > 0) {
+         u.push(c.toDataURL());
+         const e = r.pop();
+         const t = new Image;
+         t.onload = () => {
+         i = t, clearCanvas()
+         };
+         t.src = e;
+         drawThumbnails();
+         }
+         } else if (e.key === "Delete") {
+         if (highlighted) {
+         const index = highlighted.dataset.index;
+         u.splice(index, 1);
+         restoredImages.delete(highlighted.src);
+         document.getElementById("t").removeChild(highlighted);
+         highlighted = null;
+         drawThumbnails();
+         }
+         } else if (e.key === "Alt") {
+         isEraserSmall = true;
+         }
+         else if (e.key === "s" || e.key === "S") {
+           const tempCtx = document.createElement("canvas").getContext("2d");
+           tempCtx.canvas.width = c.width;
+           tempCtx.canvas.height = c.height;
+           tempCtx.fillStyle = "#FFFFFF";
+           tempCtx.fillRect(0, 0, tempCtx.canvas.width, tempCtx.canvas.height);
+           tempCtx.drawImage(c, 0, 0);
+           const dataURL = tempCtx.canvas.toDataURL("image/png");
+           const link = document.createElement("a");
+           link.download = "PulseBrush.png";
+           link.href = dataURL;
+           link.click();
+         }
+         });
+         document.addEventListener("keyup", e => {
+         if (e.key === "Alt")
+         {
+         isEraserSmall = false;
+         }
+         });
+         document.addEventListener('keydown', e => {
+           if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+             if (!highlighted) {
+               highlighted = document.getElementById('t').firstElementChild;
+             } else {
+               highlighted.style.border = '2px solid rgba(0,0,0,.2)';
+               if (e.key === 'ArrowLeft') {
+                 highlighted = highlighted.previousElementSibling || document.getElementById('t').lastElementChild;
+               } else if (e.key === 'ArrowRight') {
+                 highlighted = highlighted.nextElementSibling || document.getElementById('t').firstElementChild;
+               }
+             }
+             highlighted.style.border = '2px solid black';
+             i = highlighted;
+             restoreFromThumbnail();
+           }
+         });
+         const imageLoader = document.getElementById("imageLoader");
+         imageLoader.addEventListener("change", handleImage, false);
+         function handleImage(e) {
+           const reader = new FileReader();
+           reader.onload = function (event) {
+             const img = new Image();
+             img.onload = function () {
+               const overlay = document.createElement("canvas");
+               overlay.width = c.width;
+               overlay.height = c.height;
+               overlay.style.position = "absolute";
+               overlay.style.top = "0";
+               overlay.style.left = "0";
+               overlay.style.pointerEvents = "auto";
+               const overlayCtx = overlay.getContext("2d");
+               overlayCtx.globalAlpha = 0.4;
+               overlayCtx.drawImage(img, 0, 0, c.width, c.height);
+               overlay.addEventListener("click", () => {
+                 overlay.remove();
+               });
+               document.getElementById("t").parentNode.insertBefore(overlay, document.getElementById("t").nextSibling);
+             };
+             img.src = event.target.result;
+           };
+           reader.readAsDataURL(e.target.files[0]);
+         }
+         ctx.imageSmoothingEnabled = !1;
+         lastCtx.imageSmoothingEnabled = !1;
+         document.addEventListener("wheel", e => {
+           if (!highlighted) {
+             highlighted = (Math.sign(e.deltaY) === -1) ? document.getElementById("t").lastElementChild : document.getElementById("t").firstElementChild;
+             highlighted.style.border = '2px solid black';
+             i = highlighted;
+             restoreFromThumbnail();
+           } else {
+             highlighted.style.border = '2px solid rgba(0,0,0,.2)';
+             highlighted = (Math.sign(e.deltaY) === -1) ? (highlighted.previousElementSibling || document.getElementById("t").lastElementChild) : (highlighted.nextElementSibling || document.getElementById("t").firstElementChild);
+             if (highlighted) {
+               highlighted.style.border = '2px solid black';
+               i = highlighted;
+               restoreFromThumbnail();
+             }
+           }
+         });
+         const thumbnails = document.querySelectorAll('#t img');
+         thumbnails.forEach(thumbnail => {
+           thumbnail.addEventListener('contextmenu', e => {
+             e.preventDefault();
+             const input = document.createElement('input');
+             input.type = 'file';
+             input.accept = 'image/*';
+             input.style.display = 'none';
+             document.body.appendChild(input);
+             input.click();
+             input.addEventListener('change', event => {
+               const reader = new FileReader();
+               reader.onload = function (event) {
+                 const img = new Image();
+                 img.onload = function () {
+                   const thumbnailIndex = thumbnail.dataset.index;
+                   const canvas = document.createElement('canvas');
+                   canvas.width = w;
+                   canvas.height = h;
+                   canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                   const newThumbnail = document.createElement('img');
+                   newThumbnail.src = canvas.toDataURL();
+                   newThumbnail.width = w;
+                   newThumbnail.height = h;
+                   newThumbnail.style.margin = '2px';
+                   newThumbnail.style.border = '2px solid rgba(0,0,0,.2)';
+                   newThumbnail.dataset.index = thumbnailIndex;
+                   newThumbnail.addEventListener('click', () => {
+                     const image = u[newThumbnail.dataset.index];
+                     if (!restoredImages.has(image)) {
+                       r.length = 0;
+                       const img = new Image;
+                       img.onload = () => {
+                         i = img;
+                         clearCanvas();
+                       };
+                       img.src = image;
+                       restoredImages.set(image, img);
+                     } else {
+                       i = restoredImages.get(image);
+                       clearCanvas();
+                     }
+                     document.querySelectorAll('#t img').forEach(img => img.style.border = '2px solid rgba(0,0,0,.2)');
+                     newThumbnail.style.border = '2px solid black';
+                     i = newThumbnail;
+                     highlighted = newThumbnail;
+                     restoreFromThumbnail();
+                   });
+                   thumbnail.parentNode.replaceChild(newThumbnail, thumbnail);
+                   u[thumbnailIndex] = canvas.toDataURL();
+                 };
+                 img.src = event.target.result;
+               };
+               reader.readAsDataURL(event.target.files[0]);
+             });
+           });
+         });
+      </script>
+   </body>
+</html>
